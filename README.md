@@ -1,0 +1,1 @@
+# ral_22_sofa_magnetic
