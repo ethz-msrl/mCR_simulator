@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- args and params -->
+    <!-- <arg name="bagfile_path" />
+    <arg name="bagfile_start_sec" /> -->
+     <arg 
+      name="bagfile_path" 
+      default="/home/roland/Downloads/220209_recording/220209_sofa_mvi9971.bag" />
+    <arg 
+        name="bagfile_start_sec" 
+        default="50" />
+    <arg 
+        name="video_file" 
+        default="/home/roland/Downloads/MVI_9971_trim.mov" />
+    <arg 
+        name="video_start_frame" 
+        default="0" />
+
+
+    <!-- launch video stream -->
+    <include file="$(find video_stream_opencv)/launch/camera.launch" >
+        <!-- node name and ros graph name -->
+        <arg name="camera_name" value="videofile" />
+        <!-- full path to the video file -->
+        <!-- wget http://techslides.com/demos/sample-videos/small.mp4 -O /tmp/small.mp4 -->
+        <arg name="video_stream_provider" value="$(arg video_file)" />
+        <!-- set camera fps to (video files not affected) -->
+        <!-- <arg name="set_camera_fps" value="30"/> -->
+        <!-- set buffer queue size of frame capturing to -->
+        <arg name="buffer_queue_size" value="1000" />
+        <!-- throttling the querying of frames to -->
+        <arg name="fps" value="25" />
+        <!-- setting frame_id -->
+        <arg name="frame_id" value="videofile_frame" />
+        <!-- camera info loading, take care as it needs the "file:///" at the start , e.g.:
+        "file:///$(find your_camera_package)/config/your_camera.yaml" -->
+        <arg name="camera_info_url" value="" />
+        <!-- flip the image horizontally (mirror it) -->
+        <arg name="flip_horizontal" value="false" />
+        <!-- flip the image vertically -->
+        <arg name="flip_vertical" value="true" />
+        <!-- enable looping playback -->
+        <arg name="loop_videofile" value="false" />
+        <!-- start frame of video -->
+        <arg name="start_frame" default="$(arg video_start_frame)"/>
+        <!-- stop frame of video, -1 means the end of video -->
+        <arg name="stop_frame" default="-1"/>
+        <!-- visualize on an image_view window the stream generated -->
+        <arg name="visualize" value="false" />
+    </include>
+
+    <!-- textured quads for video display -->
+    <arg name="use_static_tf" default="true" />
+
+    <node
+        pkg="tf" 
+        type="static_transform_publisher" 
+        name="quad_broadcaster"
+        args="0 0 -0.0025 0 0 0 1 mns video_file 30"
+        if="$(arg use_static_tf)" />
+
+    <!-- play rosbag -->
+    <node
+        pkg="rosbag" 
+        type="play" 
+        name="player" 
+        output="screen" 
+        args="--clock -s $(arg bagfile_start_sec) $(arg bagfile_path)"/>
+
+
+</launch>

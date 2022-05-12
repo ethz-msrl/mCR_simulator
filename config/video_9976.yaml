@@ -1,0 +1,9 @@
+#### Parameters simulation ####
+
+sheath_sim_pos: [-0.025, -0.090, 0.0]
+sheath_sim_rot: [90.0, 0.0, 7.0]
+model_sim_pos: [0.000, -0.000, -0.002]
+model_sim_rot: [0.0, 0.0, 89.5]
+length_init: 0.185
+model_mesh_path: '/mesh/flat_model_vessels.stl'
+lcp_solv_mu: 1.e-2

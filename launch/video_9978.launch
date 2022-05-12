@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+
+  <!-- start video at start_sec -->
+  <arg
+        name="start_sec" 
+        value="105.8"/>
+  <arg
+        name="time_offset_sec" 
+        value="-6.5"/>
+  <arg
+        name="video_fps" 
+        value="25"/>
+
+  <!-- play video and bagfiles -->
+  <include file="$(find sofa_valid)/launch/textured_quad_video.launch">
+      <arg
+        name="bagfile_path" 
+        value="/home/roland/Downloads/220209_recording/220209_iros_sofa_mvi9978.bag"/>
+      <arg 
+        name="bagfile_start_sec" 
+        value="$(arg start_sec)"/>
+      <arg 
+        name="video_file" 
+        value="/home/roland/Downloads/MVI_9978_trim.mov" />
+      <arg 
+        name="video_start_frame" 
+        value="$(eval int(arg('video_fps') * (arg('time_offset_sec') + arg('start_sec'))))" />
+  </include>
+
+</launch>

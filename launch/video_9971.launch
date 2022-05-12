@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch> 
+
+  <!-- play video and bagfiles -->
+  <include file="$(find sofa_valid)/launch/textured_quad_video.launch">
+      <arg
+        name="bagfile_path" 
+        value="/home/roland/Downloads/220209_recording/220209_iros_sofa_mvi9971.bag"/>
+      <arg 
+        name="bagfile_start_sec" 
+        value="50"/>
+      <arg 
+        name="video_file" 
+        value="/home/roland/Downloads/MVI_9971_trim.mov" />
+      <arg 
+        name="video_start_frame" 
+        default="980" />
+  </include>
+    
+</launch>
