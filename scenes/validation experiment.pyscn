@@ -1,0 +1,738 @@
+import Sofa
+import SofaRuntime
+import numpy as np
+from splib3.numerics import Quat, Vec3
+from splib3.animation import AnimationManager
+from scipy.spatial.transform import Rotation as R
+
+from mag_manip import mag_manip
+
+
+from sofa_beam_rviz_markers_utils import *
+
+
+class CatheterControl(Sofa.Core.Controller):
+
+    def __init__(self, *args, **kwargs):
+
+        # These are needed (and the normal way to override from a python class)
+        Sofa.Core.Controller.__init__(self, *args, **kwargs)
+        
+        self.MO = kwargs["MechObj"]
+        self.CFF = kwargs["ConstantForceField"]
+        self.CFF_visu = kwargs["CCF_visu_mag_field"]
+        self.IRC = kwargs["InterventionalRadiologyController"]
+        self.mag_index = kwargs['mag_index']
+        self.name = 'CatheterControl'
+        self.length_init = kwargs['length_init']
+        self.tube_rig_pos = kwargs['tube_rig_pos']
+        self.T_sim_mns = kwargs['T_sim_mns']
+        self.T_2dmodel_sim = kwargs['T_2dmodel_sim']
+        self.mag_index_visu = kwargs["mag_index_visu"]
+        self.mag_len = kwargs["mag_len"]
+        self.outer_diam_tube = kwargs["outer_diam_tube"]
+        self.inner_diam_tube = kwargs["inner_diam_tube"]
+        self.outer_diam_mag = kwargs["outer_diam_mag"]
+        self.inner_diam_mag = kwargs["inner_diam_mag"]
+        self.mag_moment = kwargs["mag_moment"]
+
+        self.dt = args[0].dt.value
+        self.time_start_sim = 0.
+        self.time = 0.
+        self.time_sim = 0
+        self.b_field = [0., 0.025, 0.]
+        self.speed = 0.
+        self.length = 0.
+        self.length_des = 0.
+        self.currents = [0., 0., 0.]
+        self.adv_speed = 0.
+        self.tip_pose = [0., 0., 0., 0., 0., 0., 1.]
+
+        self.Bangle = 0.
+        self.inclination_angle = 0
+        self.azimuth_angle = 0
+
+        cal_path = '../calib/Navion_2_Calibration_24-02-2020.yaml'
+        self.forward_model = mag_manip.ForwardModelMPEM()
+        self.forward_model.setCalibrationFile(cal_path)
+
+    def currents_to_field(
+            self,
+            currents=np.array([0., 0., 0.]),
+            position=np.array([0., 0., 0.]),
+            inverted=False):
+
+        bg_jac = self.forward_model.getFieldActuationMatrix(position)
+        field = bg_jac.dot(currents)
+
+        if inverted is True:
+            field = -field
+
+        return field
+
+    def field_to_currents(
+            self,
+            field=np.array([0., 0., 0.]),
+            position=np.array([0., 0., 0.])):
+
+        bg_jac = self.forward_model.getFieldActuationMatrix(position)
+        currents = np.linalg.inv(bg_jac).dot(field)
+
+        return currents
+
+    def onKeypressedEvent(self, event):
+
+        # Increment field angle in rad
+        dBangle=3.*3.14/180
+        speed = 0.01
+
+        key = event['key']
+        # J key : inclination +
+        if ord(key)==76:
+            self.azimuth_angle-=dBangle
+        # L key : inclination -
+        if ord(key)==74:
+            self.azimuth_angle+=dBangle
+        # I key : azimuth +
+        if ord(key)==73:
+            self.inclination_angle-=dBangle
+        # K key : azimuth -
+        if ord(key)==75:
+            self.inclination_angle+=dBangle
+
+        return 0
+
+    def onAnimateBeginEvent(self, event):
+
+        # Update time
+        self.time_prev = self.time
+        self.time_elapsed = self.time - self.time_start_sim
+
+        self.time_sim = self.time_sim + self.dt
+
+        num_nodes = len(self.MO.position)
+
+        # loop through magnets
+        for i in range(0, len(self.mag_index)):
+
+            # position and orientation of magnet    
+            pos = self.MO.position[num_nodes-self.mag_index[i]-1]
+            quat = [pos[3], pos[4], pos[5], pos[6]]
+
+            r = R.from_quat(quat)
+            X = r.apply([1., 0., 0.])
+
+            # field at position of magnet
+            actual_pos = np.array([pos[0], pos[1], pos[2]])
+            actual_quat = np.array([quat[0], quat[1], quat[2], quat[3]])
+
+            self.currents = self.field_to_currents([0.02, 0., 0.])
+
+            self.b_field = self.currents_to_field(
+                self.currents,
+                actual_pos,
+                inverted=True)
+
+            mag_field = Vec3(
+                    self.b_field[0]*self.mag_moment[i],
+                    self.b_field[1]*self.mag_moment[i],
+                    self.b_field[2]*self.mag_moment[i])
+
+
+            r = R.from_rotvec(self.inclination_angle * np.array([0, 1, 0]))
+            mag_field = r.apply(mag_field)
+            r = R.from_rotvec(self.azimuth_angle * np.array([0, 0, 1]))
+            mag_field = r.apply(mag_field)
+
+            # torque on magnet
+            T = Vec3()
+            T = T.cross(X, mag_field)
+            # Update forces
+            self.CFF.forces[i][:] = [0., 0., 0., T[0], T[1], T[2]]
+
+        # field arrow visualization
+        self.CFF_visu.force = [
+            mag_field[0], mag_field[1], mag_field[2], 0, 0, 0]
+        
+        speed_sim = self.adv_speed*1e-3 * (self.time-self.time_prev)/self.dt
+        self.IRC.speed = speed_sim
+
+        # impose magnet rigid tube position with respect to distal end of instrument
+        # tube_rig_0
+        self.IRC.xtip[:][1] = self.IRC.xtip[:][0]-self.tube_rig_pos[0]
+        # tube_rig_1
+        self.IRC.xtip[:][2] = self.IRC.xtip[:][0]-self.tube_rig_pos[1]
+        # tube_rig_2
+        self.IRC.xtip[:][3] = self.IRC.xtip[:][0]-self.tube_rig_pos[2]
+ 
+        return 0
+
+
+def createScene(rootNode):
+
+    sheath_sim_pos = [-0.005, -0.085, 0.0]
+    sheath_sim_rot = [90.0, 0.0, 0.0]  # rpy angles (deg)
+    model_mesh_path = '../mesh/flat_models/flat_model_circles.stl'
+    model_sim_pos = [0.001, -0.0005, -0.002]
+    model_sim_rot = [0.0, 0.0, 89.5]  # rpy angles (deg)
+    length_init = 0.145
+    lcp_solv_mu = 1e-2
+    
+    # translation from sheath tip to insertion point of instrument
+    transl_instr_sheath = [-0.0,  -0.0, 0.14]
+
+    # rotation matrix from euler
+    r = R.from_euler('xyz', sheath_sim_rot, degrees=True)
+    rot_matrix =r.as_dcm()
+
+    # transform sofa frame of ref to sheath
+    T_sheath_sim = np.eye(4)
+    T_sheath_sim[0:3, 0:3] = rot_matrix
+    T_sheath_sim[0,3] = sheath_sim_pos[0]
+    T_sheath_sim[1,3] = sheath_sim_pos[1]
+    T_sheath_sim[2,3] = sheath_sim_pos[2]
+
+    # transform sheath to insertion point of instrument
+    T_insert_sheath = np.eye(4)
+    T_insert_sheath[3,3] =1.
+    T_insert_sheath[3,3] =1.
+    T_insert_sheath[3,3] =1.
+    T_insert_sheath[0,3] = transl_instr_sheath[0]
+    T_insert_sheath[1,3] = transl_instr_sheath[1]
+    T_insert_sheath[2,3] = transl_instr_sheath[2]
+    T_insert_sim = np.matmul(T_sheath_sim, T_insert_sheath)
+
+    start_insert_orient = [
+        sheath_sim_rot[0],
+        sheath_sim_rot[1],
+        sheath_sim_rot[2] + 90.]
+    trans_insert_sim = T_insert_sim[0:3, 3]
+
+    start_insert_quat = Quat.createFromEuler([
+        start_insert_orient[0]*np.pi/180,
+        start_insert_orient[1]*np.pi/180,
+        start_insert_orient[2]*np.pi/180])
+
+    starting_position = [
+        trans_insert_sim[0],
+        trans_insert_sim[1],
+        trans_insert_sim[2],                                                                                                                                                                                                                                                                                                                                                            
+        start_insert_quat[0],
+        start_insert_quat[1],
+        start_insert_quat[2],
+        start_insert_quat[3]]
+    
+    starting_position = [
+        -0.008, -0.075, 0.08,
+        start_insert_quat[0],
+        start_insert_quat[1],
+        start_insert_quat[2],
+        start_insert_quat[3]]
+
+    num_beams_body = 60
+    num_beams_tip = 7
+    num_edge_visu = 200
+    YoungModulus = 40e6
+    outer_diam_tube = 0.0009
+    inner_diam_tube = 0.0007
+    outer_diam_mag = 0.0015
+    inner_diam_mag = 0.0008
+    
+    mag_len = [0.015, 0.01, 0.01]
+    tube_rig_len = mag_len
+    tube_rig_pos = [0., 0.04, 0.07]  # positioning of magnet rigid tubes away from tip
+    instr_len_tot = 0.8
+    instr_len_tip = 0.11
+    instr_len_body = instr_len_tot-instr_len_tip
+
+    # index of the magnets counting from tip
+    mag_index = [0, 2, 4]
+    # index of the magnets for visual object
+    mag_index_visu = [
+        int(num_edge_visu*(instr_len_tot-tube_rig_pos[0])-1),
+        int(num_edge_visu*(instr_len_tot-tube_rig_pos[0])-2),
+        int(num_edge_visu*(instr_len_tot-tube_rig_pos[1])-2),
+        int(num_edge_visu*(instr_len_tot-tube_rig_pos[2])-2)]
+
+    # # Seems like the inner diameter of the beam is not accounted for to compute the stiffness: 
+    # # compute the outer diameter of a plain circular section with equivalent moment of area
+    outer_diam_eq = ((outer_diam_tube/2.)**4.-(inner_diam_tube/2.)**4.)**(1./4.)
+    Lm = 10e-3        # length (m)
+    Br = 1.45        # remanent field (T)
+
+    V = Lm*math.pi*((outer_diam_mag/2.)**2-(inner_diam_mag/2.)**2.)  # volume
+    mu0 = (4.*math.pi)*1e-7
+    magnet_mom = (1./mu0)*Br*V  # dipole moment
+    magnet_mom = magnet_mom/10
+    mag_moment = [magnet_mom*3, magnet_mom*2, magnet_mom*2]
+
+    rootNode.animate = True
+    rootNode.dt = 0.02
+    rootNode.gravity = [0, 0, 0]
+
+    # anatomical model to sofa sim frame of reference
+    # convert euler to quat                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+    quat_model_sim = Quat.createFromEuler([
+        model_sim_rot[0]*np.pi/180,
+        model_sim_rot[1]*np.pi/180,
+        model_sim_rot[2]*np.pi/180])
+    T_2dmodel_sim = [
+        model_sim_pos[0],
+        model_sim_pos[1],
+        model_sim_pos[2],
+        quat_model_sim[0],
+        quat_model_sim[2],
+        quat_model_sim[3]]
+
+    # sofa sim frame of refernce to mns
+    transl_sim_mns = [0, 0, 0]
+    T_sim_mns = [
+        transl_sim_mns[0],
+        transl_sim_mns[1],
+        transl_sim_mns[2],
+        0, 0, 0, 1]
+
+
+    rootNode.addObject(
+        'RequiredPlugin', name='ImportSoftRob', pluginName='SoftRobots')
+    rootNode.addObject(
+        'RequiredPlugin', name='ImportBeamAdapt', pluginName='BeamAdapter')
+    rootNode.addObject(
+        'RequiredPlugin', name='ImportSofaPython3', pluginName='SofaPython3')
+
+    rootNode.addObject(
+        'VisualStyle',
+        displayFlags='showVisualModels hideBehaviorModels hideCollisionModels hideMappings hideForceFields hideInteractionForceFields')
+    rootNode.addObject(
+        'FreeMotionAnimationLoop')
+    rootNode.addObject(
+        'LCPConstraintSolver',
+        mu=lcp_solv_mu,
+        tolerance='1e-6',
+        maxIt='10000',
+        build_lcp='false')
+    rootNode.addObject(
+        'CollisionPipeline',
+        draw='0',
+        depth='6',
+        verbose='1')
+    # rootNode.addObject('BruteForceBroadPhase')
+    # rootNode.addObject('BVHNarrowPhase')
+    rootNode.addObject(
+        'BruteForceDetection',
+        name='N2')
+    rootNode.addObject(
+        'LocalMinDistance',
+        contactDistance='0.001',
+        alarmDistance='0.004',
+        name='localmindistance',
+        angleCone='0.02')
+    rootNode.addObject(
+        'CollisionResponse',
+        name='Response', 
+        response='FrictionContact')
+    rootNode.addObject(
+        'CollisionGroup',
+        name='Group')
+    rootNode.addObject(
+        'OglSceneFrame',
+        style='Arrows',
+        alignment='TopRight')
+    
+    ################
+    
+    # wire rest shape
+    # tube 0
+    tube_0 = rootNode.addChild('tube_0')
+    tube_0.addObject(
+        'WireRestShape',
+        name='GuideRestShape',
+        straightLength=instr_len_tot-instr_len_tip,
+        length=instr_len_tot,
+        numEdges=num_edge_visu,
+        youngModulus=YoungModulus*15,
+        spireDiameter=250.0,
+        numEdgesCollis=[num_beams_body, num_beams_tip],
+        printLog=True,
+        template='Rigid3d',
+        spireHeight=0.0,
+        radius=outer_diam_tube/2.0,
+        radiusExtremity=outer_diam_tube/2.0,
+        densityOfBeams=[num_beams_body, num_beams_tip],
+        youngModulusExtremity=YoungModulus)
+    tube_0.addObject('EdgeSetTopologyContainer', name='meshLinesGuide')
+    tube_0.addObject('EdgeSetTopologyModifier', name='Modifier')
+    tube_0.addObject(
+        'EdgeSetGeometryAlgorithms', name='GeomAlgo', template='Rigid3d')
+    tube_0.addObject(
+        'MechanicalObject', name='dofTopo2', template='Rigid3d')
+
+    # rigid tube 0
+    tube_rig_0 = rootNode.addChild('tube_rig_0')
+    tube_rig_0.addObject(
+        'WireRestShape',
+        name='GuideRestShape',
+        straightLength=instr_len_tot-tube_rig_len[0],  # distance of distal end of rigid tube measured from distal end of instrument
+        length=instr_len_tot,
+        numEdges=num_edge_visu,
+        youngModulus=1.,  # straight segment is "infinitally" flexible, the straight part serves as a placeholder for the rigid tip
+        spireDiameter=250.0,
+        numEdgesCollis=[num_beams_body, num_beams_tip],
+        printLog=True,
+        template='Rigid3d',
+        spireHeight=0.0,
+        radius=outer_diam_tube/2.0,
+        radiusExtremity=outer_diam_tube/2.0,
+        densityOfBeams=[num_beams_body, num_beams_tip],
+        youngModulusExtremity=1e12)  # tip is infinitelly stiff
+    tube_rig_0.addObject('EdgeSetTopologyContainer', name='meshLinesGuide')
+    tube_rig_0.addObject('EdgeSetTopologyModifier', name='Modifier')
+    tube_rig_0.addObject(
+        'EdgeSetGeometryAlgorithms', name='GeomAlgo', template='Rigid3d')
+    tube_rig_0.addObject(
+        'MechanicalObject', name='dofTopo2', template='Rigid3d')
+
+    # rigid tube 1
+    tube_rig_1 = rootNode.addChild('tube_rig_1')
+    tube_rig_1.addObject(
+        'WireRestShape',
+        name='GuideRestShape',
+        straightLength=instr_len_tot-tube_rig_len[1],  # distance of distal end of rigid tube away from distal end of instrument
+        length=instr_len_tot,
+        numEdges=num_edge_visu,
+        youngModulus=1.,  # straight segment is "infinitally" flexible, the straight part serves as a placeholder for the rigid tip
+        spireDiameter=250.0,
+        numEdgesCollis=[num_beams_body, num_beams_tip],
+        printLog=True,
+        template='Rigid3d',
+        spireHeight=0.0,
+        radius=outer_diam_tube/2.0,
+        radiusExtremity=outer_diam_tube/2.0,
+        densityOfBeams=[num_beams_body, num_beams_tip],
+        youngModulusExtremity=1e12)  # tip is infinitelly stiff
+    tube_rig_1.addObject('EdgeSetTopologyContainer', name='meshLinesGuide')
+    tube_rig_1.addObject('EdgeSetTopologyModifier', name='Modifier')
+    tube_rig_1.addObject(
+        'EdgeSetGeometryAlgorithms', name='GeomAlgo', template='Rigid3d')
+    tube_rig_1.addObject(
+        'MechanicalObject', name='dofTopo2', template='Rigid3d')
+    
+    # rigid tube 2
+    tube_rig_2 = rootNode.addChild('tube_rig_2')
+    tube_rig_2.addObject(
+        'WireRestShape',
+        name='GuideRestShape',
+        straightLength=instr_len_tot-tube_rig_len[2],  # distance of distal end of rigid tube away from distal end of instrument
+        length=instr_len_tot,
+        numEdges=num_edge_visu,
+        youngModulus=1.,  # straight segment is "infinitally" flexible, the straight part serves as a placeholder for the rigid tip
+        spireDiameter=250.0,
+        numEdgesCollis=[num_beams_body, num_beams_tip],
+        printLog=True,
+        template='Rigid3d',
+        spireHeight=0.0,
+        radius=outer_diam_tube/2.0,
+        radiusExtremity=outer_diam_tube/2.0,
+        densityOfBeams=[num_beams_body, num_beams_tip],
+        youngModulusExtremity=1e12)  # tip is infinitelly stiff
+    tube_rig_2.addObject('EdgeSetTopologyContainer', name='meshLinesGuide')
+    tube_rig_2.addObject('EdgeSetTopologyModifier', name='Modifier')
+    tube_rig_2.addObject(
+        'EdgeSetGeometryAlgorithms', name='GeomAlgo', template='Rigid3d')
+    tube_rig_2.addObject(
+        'MechanicalObject', name='dofTopo2', template='Rigid3d')
+
+    InstrumentCombined = rootNode.addChild('InstrumentCombined')
+    InstrumentCombined.addObject(
+        'EulerImplicit',
+        rayleighStiffness=0.2,
+        printLog=False,
+        rayleighMass=0.0)
+    InstrumentCombined.addObject(
+        'BTDLinearSolver',
+        verification=False,
+        subpartSolve=False,
+        verbose=False)
+    RG = InstrumentCombined.addObject(
+        'RegularGrid',
+        name='meshLinesCombined',
+        zmax=1, zmin=1, nx=(num_beams_body+num_beams_tip),
+        ny=1, nz=1, xmax=0.2, xmin=0.0, ymin=0, ymax=0)
+    MO = InstrumentCombined.addObject(
+        'MechanicalObject',
+        showIndices=False,
+        name='DOFs',
+        template='Rigid3d',
+        translation=[-0.10, 0., 0.])
+
+    MO.init()
+
+
+    restPos = []
+    indicesAll = []
+    i = 0
+    for pos in MO.rest_position.value:
+        restPos.append(starting_position)
+        indicesAll.append(i)
+        i = i+1
+
+    MO.rest_position.value = restPos
+
+    # interpolations
+    # tube 0
+    InstrumentCombined.addObject(
+        'WireBeamInterpolation',
+        WireRestShape='@../tube_0/GuideRestShape',
+        radius=outer_diam_tube/2.0, printLog=True, name='InterpolTube0')
+
+    InstrumentCombined.addObject(
+        'AdaptiveBeamForceFieldAndMass', massDensity=155.0,
+        name='TubeForceField0', interpolation='@InterpolTube0')
+    # rigid tube 0
+    InstrumentCombined.addObject(
+        'WireBeamInterpolation',
+        WireRestShape='@../tube_rig_0/GuideRestShape',
+        radius=outer_diam_tube/2.0, printLog=True, name='InterpolRig0')
+    InstrumentCombined.addObject(
+        'AdaptiveBeamForceFieldAndMass', massDensity=155.0,
+        name='TubeRigForceField0', interpolation='@InterpolRig0')
+    # rigid tube 1
+    InstrumentCombined.addObject(
+        'WireBeamInterpolation',
+        WireRestShape='@../tube_rig_1/GuideRestShape',
+        radius=outer_diam_tube/2.0, printLog=True, name='InterpolRig1')
+    InstrumentCombined.addObject(
+        'AdaptiveBeamForceFieldAndMass', massDensity=155.0,
+        name='TubeRigForceField1', interpolation='@InterpolRig1')
+    # rigid tube 2
+    InstrumentCombined.addObject(
+        'WireBeamInterpolation',
+        WireRestShape='@../tube_rig_2/GuideRestShape',
+        radius=outer_diam_tube/2.0, printLog=True, name='InterpolRig2')
+    InstrumentCombined.addObject(
+        'AdaptiveBeamForceFieldAndMass', massDensity=155.0,
+        name='TubeRigForceField2', interpolation='@InterpolRig2')
+    
+    IIR = InstrumentCombined.addObject(
+        'InterventionalRadiologyController',
+        xtip=[0.001, 0, 0],
+        name='m_ircontroller',
+        instruments='InterpolTube0 InterpolRig0 InterpolRig1 InterpolRig2',
+        step=0.0007,
+        printLog=True, listening=True, template='Rigid3d',
+        startingPos=[0, 0, 0, 0, 0, 0, 1], mainDirection=[1, 0, 0],
+        rotationInstrument=[0, 0, 0], speed=0.0, controlledInstrument=0)
+    InstrumentCombined.addObject(
+        'LinearSolverConstraintCorrection',
+        wire_optimization='true',
+        printLog=False)
+    InstrumentCombined.addObject(
+        'FixedConstraint',
+        indices=0,
+        name='FixedConstraint')
+    InstrumentCombined.addObject(
+        'RestShapeSpringsForceField',
+        points='@m_ircontroller.indexFirstNode',
+        angularStiffness=1e8,
+        stiffness=1e8)
+
+    CFF=InstrumentCombined.addObject(
+        'ConstantForceField',
+        name='CFF',
+        indices=mag_index,
+        force='0 0 0 0 0 0',
+        indexFromEnd=True)
+
+    CFF_visu=InstrumentCombined.addObject(
+        'ConstantForceField',
+        name='CFF_visu',
+        indices=0,
+        force='0 0 0 0 0 0',
+        indexFromEnd=True,
+        showArrowSize=200)
+    
+    InstrumentCombined.addObject(
+        'PartialFixedConstraint',
+        indices=indicesAll,
+        fixedDirections='0 0 1 0 0 0',
+        fixAll=True)
+
+    
+    # # VISU
+
+    CathVisu = InstrumentCombined.addChild('CathVisu0')
+    CathVisu.addObject('MechanicalObject', name='QuadsCatheter')
+    CathVisu.addObject('QuadSetTopologyContainer', name='ContainerCath')
+    CathVisu.addObject('QuadSetTopologyModifier', name='Modifier')
+    CathVisu.addObject( 'QuadSetGeometryAlgorithms', name='GeomAlgo', 
+                                    template='Vec3d')
+    CathVisu.addObject('Edge2QuadTopologicalMapping', flipNormals= 'true', 
+                                    input= '@../../tube_0/meshLinesGuide', 
+                                    nbPointsOnEachCircle= '10', 
+                                    output= '@ContainerCath', 
+                                    radius= outer_diam_tube/2, 
+                                    tags= 'catheter')
+    CathVisu.addObject('AdaptiveBeamMapping', interpolation= '@../InterpolTube0', 
+                                    input= '@../DOFs', 
+                                    isMechanical= 'false', 
+                                    name= 'VisuMapCath', 
+                                    output= '@QuadsCatheter', 
+                                    printLog= '1', 
+                                    useCurvAbs= '1')
+    VisuOgl = CathVisu.addChild('VisuOgl')
+    VisuOgl.addObject('OglModel', quads='@../ContainerCath.quads', 
+                                    color='0 0.85 0.9', 
+                                    material='texture Ambient 1 0.2 0.2 0.2 0.0 Diffuse 1 1.0 1.0 1.0 1.0 Specular 1 1.0 1.0 1.0 1.0 Emissive 0 0.15 0.05 0.05 0.0 Shininess 1 20', 
+                                    name='VisualCatheter')
+    VisuOgl.addObject('IdentityMapping',input='@../QuadsCatheter', 
+                                    output='@VisualCatheter', 
+                                    name='VisuCathIM')
+
+    CathVisu = InstrumentCombined.addChild('CathVisu0')
+    CathVisu.addObject('MechanicalObject', name='QuadsCatheter')
+    CathVisu.addObject('QuadSetTopologyContainer', name='ContainerCath')
+    CathVisu.addObject('QuadSetTopologyModifier', name='Modifier')
+    CathVisu.addObject( 'QuadSetGeometryAlgorithms', name='GeomAlgo', 
+                                    template='Vec3d')
+    CathVisu.addObject('Edge2QuadTopologicalMapping', flipNormals= 'true', 
+                                    input= '@../../tube_rig_1/meshLinesGuide', 
+                                    nbPointsOnEachCircle= '10', 
+                                    output= '@ContainerCath', 
+                                    radius= outer_diam_tube/2*1.01, 
+                                    tags= 'catheter')
+    CathVisu.addObject('AdaptiveBeamMapping', interpolation= '@../InterpolRig1', 
+                                    input= '@../DOFs', 
+                                    isMechanical= 'false', 
+                                    name= 'VisuMapCath', 
+                                    output= '@QuadsCatheter', 
+                                    printLog= '1', 
+                                    useCurvAbs= '1')
+    VisuOgl = CathVisu.addChild('VisuOgl')
+    VisuOgl.addObject('OglModel', quads='@../ContainerCath.quads', 
+                                    color='0 0 1', 
+                                    material='texture Ambient 1 0.2 0.2 0.2 0.0 Diffuse 1 1.0 1.0 1.0 1.0 Specular 1 1.0 1.0 1.0 1.0 Emissive 0 0.15 0.05 0.05 0.0 Shininess 1 20', 
+                                    name='VisualCatheter')
+    VisuOgl.addObject('IdentityMapping',input='@../QuadsCatheter', 
+                                    output='@VisualCatheter', 
+                                    name='VisuCathIM')
+
+    CathVisu = InstrumentCombined.addChild('CathVisu0')
+    CathVisu.addObject('MechanicalObject', name='QuadsCatheter')
+    CathVisu.addObject('QuadSetTopologyContainer', name='ContainerCath')
+    CathVisu.addObject('QuadSetTopologyModifier', name='Modifier')
+    CathVisu.addObject( 'QuadSetGeometryAlgorithms', name='GeomAlgo', 
+                                    template='Vec3d')
+    CathVisu.addObject('Edge2QuadTopologicalMapping', flipNormals= 'true', 
+                                    input= '@../../tube_rig_2/meshLinesGuide', 
+                                    nbPointsOnEachCircle= '10', 
+                                    output= '@ContainerCath', 
+                                    radius= outer_diam_tube/2*1.02, 
+                                    tags= 'catheter')
+    CathVisu.addObject('AdaptiveBeamMapping', interpolation= '@../InterpolRig2', 
+                                    input= '@../DOFs', 
+                                    isMechanical= 'false', 
+                                    name= 'VisuMapCath', 
+                                    output= '@QuadsCatheter', 
+                                    printLog= '1', 
+                                    useCurvAbs= '1')
+    VisuOgl = CathVisu.addChild('VisuOgl')
+    VisuOgl.addObject('OglModel', quads='@../ContainerCath.quads', 
+                                    color='0 1 0', 
+                                    material='texture Ambient 1 0.2 0.2 0.2 0.0 Diffuse 1 1.0 1.0 1.0 1.0 Specular 1 1.0 1.0 1.0 1.0 Emissive 0 0.15 0.05 0.05 0.0 Shininess 1 20', 
+                                    name='VisualCatheter')
+    VisuOgl.addObject('IdentityMapping',input='@../QuadsCatheter', 
+                                    output='@VisualCatheter', 
+                                    name='VisuCathIM')
+
+    
+    # # COLLISION
+    # instruments
+    Collis = InstrumentCombined.addChild('Collis')
+    Collis.activated = True
+    Collis.addObject(
+        'EdgeSetTopologyContainer',
+        name='collisEdgeSet')
+    Collis.addObject(
+        'EdgeSetTopologyModifier',
+        name='colliseEdgeModifier')
+    Collis.addObject(
+        'MechanicalObject',
+        name='CollisionDOFs')
+    Collis.addObject(
+        'MultiAdaptiveBeamMapping',
+        controller='../m_ircontroller', 
+        useCurvAbs=True, 
+        printLog=False, 
+        name='collisMap')
+    Collis.addObject(
+        'LineCollisionModel',
+        proximity=0.0, 
+        group=1)
+    Collis.addObject(
+        'PointCollisionModel',
+        proximity=0.0, 
+        group=1)
+
+    # # COLLISION ENVIRONMENT
+    # flat model
+    CollisionModel = rootNode.addChild('CollisionModel')
+    CollisionModel.addObject(
+        'MeshSTLLoader',
+        filename=model_mesh_path,
+        flipNormals=False,
+        triangulate=True,
+        name='meshLoader',
+        translation=model_sim_pos,
+        rotation=model_sim_rot,
+        scale='0.001')
+    CollisionModel.addObject(
+        'Mesh', position='@meshLoader.position', 
+        triangles='@meshLoader.triangles', 
+        drawTriangles='0')
+    CollisionModel.addObject(
+        'MechanicalObject', position=[0,0,0], 
+        scale=1, 
+        name='DOFs1')
+
+    CollisionModel.addObject(
+        'TriangleCollisionModel',
+        moving=False, 
+        simulated=False)
+    CollisionModel.addObject(
+        'LineCollisionModel',
+        moving=False, 
+        simulated=False)
+    CollisionModel.addObject(
+        'PointCollisionModel',
+        moving=False, 
+        simulated=False)
+
+    # # VISU MODEL
+
+    VisuModel = CollisionModel.addChild('VisuModel')
+    VisuModel.addObject('OglModel', name="VisualOgl_model", 
+                                    src='@../meshLoader', 
+                                    color='1 0.5 0.5 0.7')
+
+    rootNode.addObject('BackgroundSetting', color='1 1 1')
+
+    # Add our python controller in the scene
+    rootNode.addObject(CatheterControl(
+        rootNode,
+        MechObj=MO,
+        InterventionalRadiologyController=IIR,
+        ConstantForceField=CFF,
+        CCF_visu_mag_field=CFF_visu,
+        mag_index=mag_index,
+        mag_moment=mag_moment,
+        length_init=length_init,
+        tube_rig_pos=tube_rig_pos,
+        T_sim_mns=T_sim_mns,
+        T_2dmodel_sim=T_2dmodel_sim,
+        outer_diam_tube=outer_diam_tube,
+        inner_diam_tube=inner_diam_tube,
+        outer_diam_mag= outer_diam_mag,
+        inner_diam_mag = inner_diam_mag,
+        # MO_visu_rviz=MO_visu_rviz,
+        mag_index_visu = mag_index_visu,
+        mag_len=mag_len))

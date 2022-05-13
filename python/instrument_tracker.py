@@ -11,7 +11,7 @@ import time
 from scipy import interpolate
 
 # run in terminal:
-# python3 tc_workspace_video_analysis.py -v /Users/roland.dreyfus/Desktop/211124_tc_workspace_cmag/L20_B5.mp4 
+# python3 python/instrument_tracker.py -v videos/MVI_9976.mov 
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
