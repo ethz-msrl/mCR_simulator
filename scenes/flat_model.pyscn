@@ -261,9 +261,9 @@ def createScene(rootNode):
     Br = 1.45        # remanent field (T)
 
     V = Lm*math.pi*((outer_diam_mag/2.)**2-(inner_diam_mag/2.)**2.)  # volume
-    mu0 = (4.*math.pi)*1e-7
+    mu0 = (4.*math.pi)*1e-6
     magnet_mom = (1./mu0)*Br*V  # dipole moment
-    magnet_mom = magnet_mom/10
+    magnet_mom = magnet_mom
     mag_moment = [magnet_mom*3, magnet_mom*2, magnet_mom*2]
 
     rootNode.animate = True
