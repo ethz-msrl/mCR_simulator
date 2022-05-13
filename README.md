@@ -98,7 +98,7 @@
  To run the tracker open a terminal, go to the directory `ral_22_sofa_magnetic`, and run the python script:
 
  ```
- python3 python/instrument_tracker.py -v video/MVI_9976.mov
+ python3 python/instrument_tracker.py -v video/MVI_9976.mp4
  ```
 
 
