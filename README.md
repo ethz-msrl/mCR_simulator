@@ -5,15 +5,15 @@ Roland Dreyfus, Quentin Boehler, Bradley J. Nelson
 
 ## Description
 
-Collection of SOFA scenes to simulate magnetic continuum robots (m-CR), post-process data and generate figures. [SOFA](https://www.sofa-framework.org) (Simulation Open Framework Architecture) is an open-source framework primarily targeted at real-time simulation, with an emphasis on medical simulation
+Collection of SOFA scenes to simulate magnetic continuum robots (m-CR), post-process data and generate figures. [SOFA](https://www.sofa-framework.org) (Simulation Open Framework Architecture) is an open-source framework primarily targeted at real-time simulation, with an emphasis on medical simulation.
 
 <table border = "0">
     <tr>
         <td>
-        <img src="images/exple_simu_aortic.png" alt="drawing" height="200"/>
+        <img src="images/anatomy.png" alt="drawing" height="200"/>
         </td>
         <td>
-        <img src="images/exple_simu_flat.png" alt="drawing" height="200"/>
+        <img src="images/planar_model.png" alt="drawing" height="200"/>
         </td>
     </tr>
 </table>
