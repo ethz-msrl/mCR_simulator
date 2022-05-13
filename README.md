@@ -56,8 +56,9 @@
  ```
  pip install mag-manip
  ```
-
- ## Run simulation using shell commands and SOFA user interface
+ 
+ ## Usage simulator
+ ### Run simulation using shell commands and SOFA user interface
 
  * Open a terminal and go to the `/bin` directory of SOFA
 
@@ -70,7 +71,7 @@
 
  More information on how to use SOFA [here](https://www.sofa-framework.org/community/doc/).
 
- ## Manual navigation of the simulated m-CR using keyboard commands. 
+ ### Manual navigation using keyboard commands. 
 
  * **Insertion/retraction**
      * CTRL + up/down: insertion/retraction of the m-CR
@@ -78,8 +79,10 @@
  * **Magnetic field**
      * CTRL + I/K: inclination angle
      * CTRL + J/L: azimuth angle
-
- ## Launch Jupyter notebook
+ 
+ ## Post-processing and figure generation
+ 
+ ### Launch Jupyter notebook
  Data processing and figure generation was done in jupiter notebook.
 
  To launch Jupyter open a terminal, go to the directory `ral_22_sofa_magnetic`, and launch jupyter notebook. This will open a webbrowser window.
@@ -87,10 +90,12 @@
  ``` bash
  jupyter notebook notebook/ral_2022_plot_tip_trajectory.ipynb
  ```
-
- ## Run two-color tip tracker
+ 
+ ## Tip tracker
+ ### Run two-color tip tracker
 
  * Open a terminal and run:
+ To run the tracker open a terminal, go to the directory `ral_22_sofa_magnetic`, and run the python script:
 
  ```
  python3 python/instrument_tracker.py -v video/MVI_9976.mov
