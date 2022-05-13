@@ -93,7 +93,7 @@
  * Open a terminal and run:
 
  ```
- python3 python/instrument_tracker.py -v videos/MVI_9976.mov
+ python3 python/instrument_tracker.py -v video/MVI_9976.mov
  ```
 
 
