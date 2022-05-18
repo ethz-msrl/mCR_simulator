@@ -88,7 +88,7 @@
  To launch Jupyter open a terminal, go to the directory `ral_22_sofa_magnetic`, and launch jupyter notebook. This will open a webbrowser window.
 
  ``` bash
- jupyter notebook notebook/ral_2022_plot_tip_trajectory.ipynb
+ jupyter notebook notebook/ral_2022_mCR_data_viz.ipynb
  ```
  
  ## Tip tracker
