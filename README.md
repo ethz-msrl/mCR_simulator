@@ -94,7 +94,6 @@
  ## Tip tracker
  ### Run two-color tip tracker
 
- * Open a terminal and run:
  To run the tracker open a terminal, go to the directory `ral_22_sofa_magnetic`, and run the python script:
 
  ```
