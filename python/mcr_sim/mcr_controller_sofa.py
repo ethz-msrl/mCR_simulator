@@ -28,7 +28,7 @@ class ControllerSofa(Sofa.Core.Controller):
             e_mns,
             instrument,
             T_sim_mns,
-            mag_field_init=np.array([0., 0.02, 0.]),
+            mag_field_init=np.array([0.01, 0.01, 0.]),
             *args, **kwargs):
 
         # These are needed (and the normal way to override from a python class)

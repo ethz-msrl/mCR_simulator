@@ -1,5 +1,10 @@
+import numpy as np
 from splib3.numerics import Quat, Vec3
+import math
 from scipy.spatial.transform import Rotation as R
+import os
+import rospy
+import rospkg
 
 from mcr_sim import \
     mcr_environment, mcr_instrument, mcr_emns, mcr_simulator, \
@@ -19,7 +24,7 @@ inner_diam = 0.0008         # (m)
 length_init = .35
 
 # Parameters environment
-environment_stl = '../mesh/anatomies/J2-Naviworks.stl'
+environment_stl = '../mesh/flat_models/flat_model_circles.stl'
 
 # Parameter magnet
 magnet_length = 4e-3        # (m)
@@ -35,42 +40,58 @@ num_elem_tip = 3
 # Transforms
 # Sofa sim frame in Navion
 
-# Transforms (translation , quat)
+# Model in sofa sim frame
+rot_env_sim = [0, 0, 0]  # rpy angles
+transl_env_sim = [0, 0, 0]
+
+# transforms (translation , quat)
 T_sim_mns = [
     0., 0., 0.,
     0., 0., 0., 1]
 
-# Environment in sofa sim frame
-rot_env_sim = [-0.7071068, 0, 0, 0.7071068]
-transl_env_sim = [0., -0.45, 0.]
+# Define entry pose in model
+# starting pose in environment frame
+T_start_env = [-0.04, 0.01, 0.002, 0., 0., 0., 1.]
 
+X = Vec3(
+    T_start_env[0],
+    T_start_env[1],
+    T_start_env[2])
+r = R.from_euler('xyz', rot_env_sim, degrees=True)
+X = r.apply(X)
+
+q = Quat.createFromEuler([
+    rot_env_sim[0]*math.pi/180,
+    rot_env_sim[1]*math.pi/180,
+    rot_env_sim[2]*math.pi/180])
+qrot = Quat(
+    T_start_env[3],
+    T_start_env[4],
+    T_start_env[5],
+    T_start_env[6])
+q.rotateFromQuat(qrot)
+
+# starting pose sofa sim frame
+T_start_sim = [
+    X[0]+transl_env_sim[0],
+    X[1]+transl_env_sim[1],
+    X[2]+transl_env_sim[2],
+    q[0], q[1], q[2], q[3]]
+
+# transform environment
+pos_env_sim = transl_env_sim
+quat_env_sim = Quat.createFromEuler([
+    rot_env_sim[0]*np.pi/180,
+    rot_env_sim[1]*np.pi/180,
+    rot_env_sim[2]*np.pi/180])
 T_env_sim = [
     transl_env_sim[0],
     transl_env_sim[1],
     transl_env_sim[2],
-    -0.7071068, 0, 0, 0.7071068]
-
-# Starting pose in environment frame
-T_start_env = [-.075, -.001, -.020, 0., -0.3826834, 0., 0.9238795]
-
-trans_start_env = Vec3(
-    T_start_env[0],
-    T_start_env[1],
-    T_start_env[2])
-r = R.from_quat(rot_env_sim)
-trans_start_env = r.apply(trans_start_env)
-
-quat_start = Quat(rot_env_sim)
-qrot = Quat(
-    T_start_env[3],  T_start_env[4], T_start_env[5], T_start_env[6])
-quat_start.rotateFromQuat(qrot)
-
-# Starting pose sofa_sim frame
-T_start_sim = [
-    trans_start_env[0]+transl_env_sim[0],
-    trans_start_env[1]+transl_env_sim[1],
-    trans_start_env[2]+transl_env_sim[2],
-    quat_start[0], quat_start[1], quat_start[2], quat_start[3]]
+    quat_env_sim[0],
+    quat_env_sim[1],
+    quat_env_sim[2],
+    quat_env_sim[3]]
 
 
 def createScene(root_node):
@@ -89,9 +110,7 @@ def createScene(root_node):
     environment = mcr_environment.Environment(
         root_node=root_node,
         environment_stl=environment_stl,
-        name='aortic_arch',
         T_env_sim=T_env_sim,
-        flip_normals=True,
         color=[1., 0., 0., 0.3])
 
     # magnet
@@ -99,7 +118,8 @@ def createScene(root_node):
            length=magnet_length,
            outer_diam=magnet_od,
            inner_diam=magnet_id,
-           remanence=magnet_remanence)
+           remanence=magnet_remanence,
+           color=[.2, .2, .2, 1.])
 
     # magnets on both ends of flexible segment
     magnets = [0. for i in range(num_elem_tip)]
@@ -108,7 +128,7 @@ def createScene(root_node):
 
     # instrument
     instrument = mcr_instrument.Instrument(
-        name='mcr',
+        name='mag_gw',
         root_node=root_node,
         length_body=length_body,
         length_tip=length_tip,
@@ -121,14 +141,16 @@ def createScene(root_node):
         num_elem_tip=num_elem_tip,
         nume_nodes_viz=nume_nodes_viz,
         T_start_sim=T_start_sim,
-        color=[.2, .8, 1., 1.]
+        fixed_directions=[0, 0, 1, 0, 0, 0],
+        color=[0.2, .8, 1., 1.]
         )
 
-    # sofa-based controller
+    # ros-based controller
     controller_sofa = mcr_controller_sofa.ControllerSofa(
         root_node=root_node,
         e_mns=navion,
         instrument=instrument,
+        environment=environment,
         length_init=length_init,
         T_sim_mns=T_sim_mns,
     )
