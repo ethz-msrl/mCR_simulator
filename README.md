@@ -4,7 +4,7 @@
  ## Multimedia materials and source code
 
  ## Description
-Magnetic continuum robot (m-CR) simulator is an object based Python implementation of SOFA to simulate magnetically actuated continuum robots. The package interfaces magnetic field models with the SOFA simulated mechanical model of the continuum robot. [SOFA](https://www.sofa-framework.org) (Simulation Open Framework Architecture) is an open-source framework primarily targeted at real-time simulation, with an emphasis on medical simulation.
+Magnetic continuum robot (m-CR) simulator is an object oriented Python implementation of SOFA to simulate magnetically actuated continuum robots. The package interfaces magnetic field models with the SOFA simulated mechanical model of the continuum robot. [SOFA](https://www.sofa-framework.org) (Simulation Open Framework Architecture) is an open-source framework primarily targeted at real-time simulation, with an emphasis on medical simulation.
 
  <table border = "0">
      <tr>
