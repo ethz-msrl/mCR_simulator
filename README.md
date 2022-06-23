@@ -4,7 +4,7 @@
  ## Multimedia materials and source code
 
  ## Description
-Magnetic continuum robot (m-CR) simulator is an object oriented Python implementation of SOFA to simulate magnetically actuated continuum robots. The package interfaces magnetic field models with the SOFA simulated mechanical model of the continuum robot. [SOFA](https://www.sofa-framework.org) (Simulation Open Framework Architecture) is an open-source framework primarily targeted at real-time simulation, with an emphasis on medical simulation.
+The magnetic continuum robot (m-CR) simulator is an object-oriented Python implementation of SOFA to simulate magnetically actuated continuum robots. The package interfaces magnetic field models with the SOFA simulated mechanical model of the continuum robot. [SOFA](https://www.sofa-framework.org) (Simulation Open Framework Architecture) is an open-source framework primarily targeted at real-time simulation, with an emphasis on medical simulation.
 
  <table border = "0">
      <tr>
@@ -20,7 +20,7 @@ Magnetic continuum robot (m-CR) simulator is an object oriented Python implement
 
  ## Installation
 
- This requires Ubuntu 20.04 with and Python 3.
+ This requires Ubuntu 20.04 with Python 3.
 
  ### Install and build SOFA
 
@@ -80,13 +80,13 @@ Magnetic continuum robot (m-CR) simulator is an object oriented Python implement
      * CTRL + J/L: azimuth angle
  
 ### Usage python scripts
-An example of how to build a m-CR simulation scene, can be found in 
+An example of how to build an m-CR simulation scene can be found in 
 * [example_aortic_arch.py](python/example_aortic_arch.py)
 * [example_flat.py](python/example_flat.py).
 
 
-### Example with step by step explanation
-Bellow is a step by step explanation of how to build a m-CR simulation scene. The explanation is based on [example_aortic_arch.py](python/example_aortic_arch.py).
+### Example with step-by-step explanation
+Below is a step-by-step explanation of how to build an m-CR simulation scene. The explanation is based on [example_aortic_arch.py](python/example_aortic_arch.py).
 
 Import the mcr_simulation modules
 ```python
@@ -143,7 +143,7 @@ T_start_sim = [
   -0.3826834, 0., 0.9238795]
 ```
 
-In order to build an m-CR simulation, start by creating the SOFA scene:
+To build an m-CR simulation, start by creating the SOFA scene:
 ```python
 def createScene(root_node):
     ''' Build SOFA scene '''
@@ -156,7 +156,7 @@ Add the simulation physics and solver. The mcr_simulator object defines the solv
         root_node=root_node)
 ```
 
-Define the electromagnetic navigation system. The mcr_emns class uses [mag_manip](https://pypi.org/project/mag-manip/) to model the magnetic field and provides methodes to compute currents from magnetic fields (backwards model), and magnetic fields from currents (forward model).
+Define the electromagnetic navigation system. The mcr_emns class uses [mag_manip](https://pypi.org/project/mag-manip/) to model the magnetic field and provides methods to compute currents from magnetic fields (backward model) and magnetic fields from currents (forward model).
 ```python
     # eMNS
     navion = mcr_emns.EMNS(
@@ -164,7 +164,7 @@ Define the electromagnetic navigation system. The mcr_emns class uses [mag_manip
         calibration_path=cal_path)
 ```
 
-Add the environment. The mcr_environment objects adds the mechanical,  collision and visual models of the envirnoment (e.g. anatomical model or collision objects) to the SOFA scene.
+Add the environment. The mcr_environment object adds the mechanical, collision and visual models of the envirnoment (e.g. anatomical model or collision objects) to the SOFA scene.
 ```python
     # environment
     environment = mcr_environment.Environment(
@@ -176,7 +176,7 @@ Add the environment. The mcr_environment objects adds the mechanical,  collision
         color=[1., 0., 0., 0.3])
 ```
 
-Define the magnets that are embeded in the m-CR body. A magnet object can be created with the mcr_magnet class.
+Define the magnets that are embedded in the m-CR body. A magnet object can be created with the mcr_magnet class.
 ```python
     # magnet
     magnet = mcr_magnet.Magnet(
@@ -191,10 +191,10 @@ The magnetic elements of the instrument are defined by a list with the same leng
     # magnets on both ends of flexible segment
     magnets = [0. for i in range(num_elem_tip)]
     magnets[0] = magnet
-    magnets[1] = magnet
+    magnets[-1] = magnet
 ```
 
-Create the magnetic instrument object. The mcr_instrument class adds the mechanical, collision and visual model to the SOFA scene. 
+Create the magnetic instrument object. The mcr_instrument class adds the mechanical, collision, and visual model to the SOFA scene. 
 ```python
     # instrument
     instrument = mcr_instrument.Instrument(
@@ -233,7 +233,7 @@ Create the controller. The controller interfaces with the SOFA controller and wi
  ### Launch Jupyter notebook
  Data processing and figure generation was done in jupiter notebook.
 
- To launch Jupyter open a terminal, go to the directory `ral_22_sofa_magnetic`, and launch jupyter notebook. This will open a webbrowser window.
+ To launch Jupyter open a terminal, go to the directory `ral_22_sofa_magnetic`, and launch jupyter notebook. This will open a web browser window.
 
  ``` bash
  jupyter notebook notebook/ral_2022_mCR_data_viz.ipynb
