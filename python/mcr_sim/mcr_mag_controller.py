@@ -95,7 +95,8 @@ class MagController(Sofa.Core.Controller):
             T = T.cross(X, magnetic_field)
 
             # Update forces and torques
-            self.instrument.CFF.forces[i][:] = [0, 0, 0, T[0], T[1], T[2]]
+            self.instrument.CFF.forces[self.instrument.index_mag[i]][:] = [
+                0, 0, 0, T[0], T[1], T[2]]
 
         # visualze magnetic field arrow in SOFA gui
         self.instrument.CFF_visu.force = [

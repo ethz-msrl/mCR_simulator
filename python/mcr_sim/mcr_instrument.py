@@ -68,6 +68,8 @@ class Instrument(Sofa.Core.Controller):
         self.index_mag = np.nonzero(self.magnets)[0]
         self.outer_diam = outer_diam
         self.inner_diam = inner_diam
+        self.num_elem_body = num_elem_body
+        self.num_elem_tip = num_elem_tip
 
         self.color = color
 
@@ -93,13 +95,13 @@ class Instrument(Sofa.Core.Controller):
             numEdges=nume_nodes_viz,
             youngModulus=young_modulus_body,
             spireDiameter=250.0,
-            numEdgesCollis=[num_elem_body, num_elem_tip],
+            numEdgesCollis=[self.num_elem_body, self.num_elem_tip],
             printLog=True,
             template='Rigid3d',
             spireHeight=0.0,
             radius=self.outer_diam_qu/2.0,
             radiusExtremity=self.outer_diam_qu/2.0,
-            densityOfBeams=[num_elem_body, num_elem_tip],
+            densityOfBeams=[self.num_elem_body, self.num_elem_tip],
             youngModulusExtremity=young_modulus_tip)
         topoLines_guide.addObject(
             'EdgeSetTopologyContainer',
@@ -130,7 +132,7 @@ class Instrument(Sofa.Core.Controller):
             'RegularGrid',
             name='meshLinesCombined',
             zmax=1, zmin=1,
-            nx=num_elem_body+num_elem_tip, ny=1, nz=1,
+            nx=self.num_elem_body+self.num_elem_tip, ny=1, nz=1,
             xmax=0.2, xmin=0, ymin=0, ymax=0)
         self.MO = self.InstrumentCombined.addObject(
             'MechanicalObject',
@@ -148,7 +150,7 @@ class Instrument(Sofa.Core.Controller):
             i = i+1
 
         forcesList = ""
-        for i in range(0, len(self.index_mag)):
+        for i in range(0, self.num_elem_body+self.num_elem_tip):
             forcesList += " 0 0 0 0 0 0 "
 
         indicesList = ''
