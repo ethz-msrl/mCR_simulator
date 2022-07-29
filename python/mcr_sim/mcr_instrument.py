@@ -153,9 +153,7 @@ class Instrument(Sofa.Core.Controller):
         for i in range(0, self.num_elem_body+self.num_elem_tip):
             forcesList += " 0 0 0 0 0 0 "
 
-        indicesList = ''
-        for i in range(0, len(self.index_mag)):
-            indicesList += str(self.index_mag[i]) + ' '
+        indicesList = list(range(0, self.num_elem_body+self.num_elem_tip))
 
         self.MO.rest_position.value = restPos
 
