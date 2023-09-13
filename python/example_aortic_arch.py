@@ -126,6 +126,7 @@ def createScene(root_node):
 
     # sofa-based controller
     controller_sofa = mcr_controller_sofa.ControllerSofa(
+        name='ControllerSofa',
         root_node=root_node,
         e_mns=navion,
         instrument=instrument,

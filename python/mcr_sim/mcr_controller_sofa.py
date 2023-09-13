@@ -43,6 +43,7 @@ class ControllerSofa(Sofa.Core.Controller):
         self.dfield_angle = 0.
 
         self.mag_controller = mcr_mag_controller.MagController(
+            name='mag_controller',
             root_node=self.root_node,
             e_mns=self.e_mns,
             instrument=self.instrument,

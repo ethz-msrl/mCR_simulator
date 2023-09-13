@@ -171,12 +171,14 @@ class Instrument(Sofa.Core.Controller):
 
         self.CFF = self.InstrumentCombined.addObject(
             'ConstantForceField',
+            name='ConstantForceField',
             indices=indicesList,
             forces=forcesList,
             indexFromEnd=True)
 
         self.CFF_visu = self.InstrumentCombined.addObject(
             'ConstantForceField',
+            name='ConstantForceFieldViz',
             indices=0,
             force='0 0 0 0 0 0',
             showArrowSize=1.e2)
