@@ -71,6 +71,8 @@ class Instrument(Sofa.Core.Controller):
         self.num_elem_body = num_elem_body
         self.num_elem_tip = num_elem_tip
 
+        self.insertion_len = 0.
+
         self.color = color
 
         # the inner diameter of the beam is not accounted for to
@@ -210,6 +212,8 @@ class Instrument(Sofa.Core.Controller):
             points='@m_ircontroller.indexFirstNode',
             angularStiffness=1e8,
             stiffness=1e8)
+
+        self.insertion_len = self.IRC.xtip.value
 
         # restrict DOF of nodes
         self.InstrumentCombined.addObject(

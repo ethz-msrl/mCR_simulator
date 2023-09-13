@@ -53,6 +53,8 @@ class ControllerSofa(Sofa.Core.Controller):
 
         self.mag_controller.field_des = self.mag_field_init
 
+        self.print_insertion_length = False
+
     def onKeypressedEvent(self, event):
         ''' Send magnetic field and insertion inputs when keys are pressed.'''
 
@@ -88,3 +90,8 @@ class ControllerSofa(Sofa.Core.Controller):
             r = R.from_rotvec(dfield_angle * np.array([1, 0, 0]))
             self.mag_controller.field_des = r.apply(
                 self.mag_controller.field_des)
+
+    def onAnimateBeginEvent(self, event):
+
+        if self.print_insertion_length:
+            print(self.instrument.insertion_len)
