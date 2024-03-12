@@ -133,4 +133,5 @@ def createScene(root_node):
         length_init=length_init,
         T_sim_mns=T_sim_mns,
     )
+    controller_sofa.print_insertion_length = False
     root_node.addObject(controller_sofa)
